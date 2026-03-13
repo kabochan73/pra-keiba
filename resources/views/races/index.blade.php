@@ -129,6 +129,7 @@
 
 <header>
     <h1>競馬レース一覧</h1>
+    <a href="{{ route('analysis.popularity') }}" style="margin-left:auto; color:#aac8e8; text-decoration:none; font-size:14px;">📊 人気別分析</a>
 </header>
 
 <div class="container">
