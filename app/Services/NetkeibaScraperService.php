@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\HorseHistory;
 use App\Models\Race;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -94,6 +95,91 @@ class NetkeibaScraperService
         $this->parsePayouts($race, $crawler);
 
         return $race;
+    }
+
+    /**
+     * 馬の全成績をスクレイピングしてDBに保存する
+     */
+    public function scrapeHorseHistory(string $horseName): array
+    {
+        // race_entriesからhorse_urlを取得
+        $entry = \App\Models\RaceEntry::where('horse_name', $horseName)
+            ->whereNotNull('horse_url')
+            ->first();
+
+        if (!$entry) {
+            throw new \RuntimeException("「{$horseName}」のURLが見つかりません。先に出馬表を取得してください。");
+        }
+
+        // URLから馬IDを抽出 (例: https://db.netkeiba.com/horse/2020103275)
+        if (!preg_match('/\/horse\/(\d+)/', $entry->horse_url, $m)) {
+            throw new \RuntimeException("馬URLの形式が不正です: {$entry->horse_url}");
+        }
+        $horseId = $m[1];
+
+        // AjaxエンドポイントからJSON取得
+        try {
+            $response = $this->client->get('https://db.netkeiba.com/horse/ajax_horse_results.html', [
+                'query' => ['input' => 'UTF-8', 'output' => 'json', 'id' => $horseId],
+            ]);
+            $json = json_decode((string) $response->getBody(), true);
+        } catch (GuzzleException $e) {
+            throw new \RuntimeException("成績データの取得に失敗しました: " . $e->getMessage());
+        }
+
+        if (($json['status'] ?? '') !== 'OK') {
+            throw new \RuntimeException("成績データの取得に失敗しました（status: {$json['status']}）");
+        }
+
+        $crawler = new Crawler($json['data']);
+
+        // 既存データを削除して再取得
+        HorseHistory::where('horse_name', $horseName)->delete();
+
+        $saved = 0;
+        $crawler->filter('table tr')->slice(1)->each(function (Crawler $row) use ($horseName, $horseId, &$saved) {
+            $cols = $row->filter('td');
+            if ($cols->count() < 20) {
+                return;
+            }
+
+            $dateText = trim($cols->eq(0)->text());
+            if (!preg_match('/\d{4}\/\d{2}\/\d{2}/', $dateText)) {
+                return;
+            }
+
+            $rank = trim($cols->eq(11)->text());
+
+            HorseHistory::create([
+                'horse_name'     => $horseName,
+                'horse_id'       => $horseId,
+                'race_date'      => $dateText,
+                'venue'          => trim($cols->eq(1)->text()) ?: null,
+                'weather'        => trim($cols->eq(2)->text()) ?: null,
+                'race_number'    => $this->toInt(trim($cols->eq(3)->text())),
+                'race_name'      => trim($cols->eq(4)->text()) ?: null,
+                'horses_count'   => $this->toInt(trim($cols->eq(6)->text())),
+                'gate_number'    => $this->toInt(trim($cols->eq(7)->text())),
+                'horse_number'   => $this->toInt(trim($cols->eq(8)->text())),
+                'win_odds'       => $this->toFloat(trim($cols->eq(9)->text())),
+                'popularity'     => $this->toInt(trim($cols->eq(10)->text())),
+                'rank'           => $rank ?: null,
+                'jockey'         => trim($cols->eq(12)->text()) ?: null,
+                'burden_weight'  => $this->toFloat(trim($cols->eq(13)->text())),
+                'course'         => trim($cols->eq(14)->text()) ?: null,
+                'track_condition'=> trim($cols->eq(16)->text()) ?: null,
+                'finish_time'    => trim($cols->eq(18)->text()) ?: null,
+                'margin'         => trim($cols->eq(19)->text()) ?: null,
+                'corner_order'   => trim($cols->eq(21)->text()) ?: null,
+                'pace'           => trim($cols->eq(22)->text()) ?: null,
+                'last_3f'        => $this->toFloat(trim($cols->eq(23)->text())),
+                'horse_weight'   => trim($cols->eq(24)->text()) ?: null,
+                'winner'         => trim($cols->eq(27)->text()) ?: null,
+            ]);
+            $saved++;
+        });
+
+        return ['horse_name' => $horseName, 'horse_id' => $horseId, 'count' => $saved];
     }
 
     /**

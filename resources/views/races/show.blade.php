@@ -149,6 +149,8 @@
         tbody tr:hover { background: #f8faff; }
 
         .horse-name { text-align: left; font-weight: bold; }
+        .horse-name a { color: #1a3a5c; text-decoration: none; }
+        .horse-name a:hover { text-decoration: underline; }
 
         /* 枠番色 */
         .waku-1 { background: #fff; }
@@ -312,7 +314,9 @@
                             <span class="waku-badge waku-{{ $entry->gate_number }}">{{ $entry->gate_number }}</span>
                         </td>
                         <td>{{ $entry->horse_number }}</td>
-                        <td class="horse-name">{{ $entry->horse_name }}</td>
+                        <td class="horse-name">
+                            <a href="{{ route('horses.show', ['name' => $entry->horse_name]) }}">{{ $entry->horse_name }}</a>
+                        </td>
                         <td>{{ $entry->sex_age ?? '-' }}</td>
                         <td>{{ $entry->burden_weight ?? '-' }}</td>
                         <td>{{ $entry->jockey ?? '-' }}</td>
@@ -372,7 +376,9 @@
                             <span class="waku-badge waku-{{ $result->gate_number }}">{{ $result->gate_number }}</span>
                         </td>
                         <td>{{ $result->horse_number }}</td>
-                        <td class="horse-name">{{ $result->horse_name }}</td>
+                        <td class="horse-name">
+                            <a href="{{ route('horses.show', ['name' => $result->horse_name]) }}">{{ $result->horse_name }}</a>
+                        </td>
                         <td>{{ $result->sex_age ?? '-' }}</td>
                         <td>{{ $result->burden_weight ?? '-' }}</td>
                         <td>{{ $result->jockey ?? '-' }}</td>
