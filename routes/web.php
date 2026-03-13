@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+use App\Http\Controllers\RaceController;
+
+Route::get('/', [RaceController::class, 'index']);
+Route::get('/races/{race}', [RaceController::class, 'show'])->name('races.show');
